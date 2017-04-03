@@ -1,0 +1,3 @@
+# PyFi
+
+My wife and I have wifi access included in our rent. A little while ago, our landlord decided that she would like to turn off the wifi during the night when we're not using it. However, we occasionally stay up late working and need wifi during that time so we asked them to please leave it on. Although they agreed, my wife recently had a script she was running (which required internet access) get cut off during the night and it looked like the reason was that the wifi had been cut off. Before talking to our landlords, I thought it might instead be fun to write a short python script to continuously test our wifi access during the night. Turns out our wifi is fine and my wife has to go back to the drawing board... :)

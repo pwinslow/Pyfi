@@ -1,0 +1,171 @@
+#!/usr/bin/python
+
+# Imports
+from datetime import datetime
+import urllib2
+import sys
+import os
+import threading
+
+# Specify remote server (Note: make sure this site isn't listed in your remote hosts file!!)
+REMOTE_SERVER = 'http://www.google.com'
+
+# Read in requested end date and end time. Both should be strings and requested at runtime in the following format:
+# ./PyFi_Check 'month:day' 'hour:min:sec'
+Check_Wifi_args = sys.argv[1:]
+
+
+class Check_Wifi(object):
+
+	'''
+
+	This class checks the users ability to connect to the internet over a specified time interval.
+
+
+	Attributes:
+	-----------
+
+		Only class attributes are the end date and end time, specified at runtime.
+
+
+	Methods:
+	--------
+
+		log_reader: 	PyFi_Check continuously outputs data into a log file. Once end date and end time are reached, this method reads 
+				the log file and prints info about any existing time intervals during which the user was not able to connect to
+				the internet.
+
+		check_time: 	Checks whether the end date and end time have been reached at specified intervals.
+
+		is_connected:	Check for internet connection on specified time intervals, printing connection status info to log file after 
+				each check.
+
+	'''
+
+	# Initialize an instance of the class
+	def __init__(self, class_args, check_interval = None):
+
+		# If no interval has been defined, then simply assign a default of 30 seconds
+		self.check_interval = check_interval or 30.0
+
+		# Extract end date and time info
+		self.month, self.day = tuple([int(x) for x in class_args[0].split(':')])
+		self.hour, self.min, self.sec = tuple([int(x) for x in class_args[1].split(':')])
+
+		# Reformat end date (time) into a float (integer number of seconds) which can be easily compared with current time.
+		self.stop_date = self.month + self.day * 1e-2
+		self.stop_time = self.hour * 60**2 + self.min * 60 + self.sec
+
+		# If log file exists from previous run, delete it.
+		if os.path.isfile('PyFi_Check.log') == True:
+			os.remove('PyFi_Check.log')
+
+
+	def log_reader(self):
+
+		# Read log file
+		with open('PyFi_Check.log', 'r+') as f:
+
+			log_file = f.readlines()
+
+		# Extract time intervals during which there was no connection
+		line = 0
+		dead_list = []
+		while line < len(log_file):
+
+			if 'Not connected' in log_file[line]:
+
+				start_dead_time = log_file[line-1].split()[2]
+
+				while 'Not connected' in log_file[line]:
+
+					if line + 3 >= len(log_file):
+
+						break
+
+					line += 3
+
+				end_dead_time = log_file[line-1].split()[2]
+
+				dead_list.append([start_dead_time, end_dead_time])
+			
+			
+			line += 1
+
+		
+		# Print summary log info
+
+		print '\nNumber of times connection was lost: {0}.\nPrinting dead times...\n'.format(len(dead_list))
+
+		for i in range(len(dead_list)):
+
+			print 'Dead time {0}:\nBegan at {1} and lasted until {2}\n'.format(i+1, dead_list[i][0], dead_list[i][1])
+
+
+		print '\nFor more info see PyFi_Check.log\n'
+
+		pass
+
+
+	def check_time(self):
+
+		# Extract current date and time in required formats
+		date, time = tuple(str(datetime.now()).split())
+		current_time_str = time.split('.')[0]
+		year, month, day = [x for x in date.split('-')]
+		hours, mins, secs = [x for x in time.split(':')]
+		current_date, current_time = float(month + '.' + day), int(hours) * 60**2 + int(mins) * 60 + int(round(float(secs)))
+
+		# Compare current date and time with specified end date and time
+		if (current_date >= self.stop_date) and (current_time >= self.stop_time):
+
+			return current_time_str, True
+
+		else:
+
+			return current_time_str, False
+
+
+	def is_connected(self):
+
+		# Get current time and define a boolean value which tells us whether it's time to stop the script yet or not
+		current_time, time_up = self.check_time()
+
+
+		if not time_up:
+
+			# If time isn't up yet, start a thread which runs the current function after 30 seconds. By including this line within 
+			# the function itself, it guarantees the function will run continuously every 30 seconds.
+			threading.Timer(self.check_interval, self.is_connected).start()
+
+		else:
+
+			# Run log_reader on log file
+			print '\nChecking log file...\n'
+			self.log_reader()
+
+		try:
+
+			# Test internet connection
+			response = urllib2.urlopen(REMOTE_SERVER, timeout = 1)
+
+			# Update log file
+			with open('PyFi_Check.log', 'a') as f:
+
+				f.write("Current time: {0}\nCurrent status: {1}\n\n".format(current_time, 'Connected!'))
+
+			return True
+
+		# If an error occurs then report this to log file
+		except urllib2.URLError as err:
+
+			with open('PyFi_Check.log', 'a') as f:
+				
+				f.write("Current time: {0}\nCurrent status: {1}\n\n".format(current_time, 'Not connected...'))
+
+		return False
+
+
+# Create an instance of the Check_Wifi class and begin PyFi_Check
+my_check = Check_Wifi(Check_Wifi_args)
+my_check.is_connected()
